@@ -1,31 +1,36 @@
-You are generating a Langflow custom component as a single Python file.
+You must generate ONE minimal Python file that defines EXACTLY this shape:
 
-Requirements:
-- Target: Langflow "custom component" API (standard library only).
-- Include: class metadata (display_name, description), type hints, docstring, input validation.
-- Inputs/Outputs: implement exactly as specified by the user spec below.
-- Compatibility: assume latest stable Langflow; avoid non-core imports.
-- No side effects; pure computation.
+# <Header comment, one short line>
+class <ClassName>Component:
+    display_name = "<ShortName>"
+    description = "<One sentence>"
+
+    def build(self, <inputs...>) -> <output_type>:
+        # input validation
+        # core logic
+        return <value>
+
+Rules:
+- Use ONLY stdlib. No imports unless absolutely required.
+- Use a single-line # header; DO NOT use triple-quoted docstrings.
+- Typing via inline annotations is OK.
+- The file MUST parse with ast.parse().
+- Keep <ClassName> in CamelCase, and ALWAYS end class name with "Component".
+- The build() method is REQUIRED; no __init__, no run(), no decorators.
 
 User spec:
 {{SPEC}}
 
-Return format:
-Return ONLY one single-line JSON object (no markdown, no backticks, no extra text).
-Fields:
+Return format (STRICT):
+Return ONLY one single-line JSON object (no markdown). Fields:
 - "filename": string like "components/custom/{{SAFE_SLUG}}_component.py"
-- "encoding": "base64"
 - "language": "python"
-- "code": base64 of the FULL file content (UTF-8)
+- "code_lines": array of strings (each element is ONE line of the file, without trailing newline)
 
-Strictness:
-- Any text outside the JSON is a fatal error.
-- JSON must be valid.
-- Keep replies under {{CHAR_LIMIT}} characters total.
-Any text outside the single-line JSON object is a fatal error.
-Do not use code fences or explanations.
-Reliability rules:
-- Do NOT use triple-quoted docstrings. Use a single # comment header instead.
-- The file MUST be syntactically valid Python; imagine it will be parsed with ast.parse().
-- Keep the file minimal; no long comments.
+Hard constraints:
+- Do not include code fences, xml tags, or prose.
+- Ensure valid JSON (double quotes, commas).
+- Keep the file small and syntactically valid.
+- No triple-quoted docstrings; use a single # header line.
 - Any text outside the single-line JSON is a fatal error.
+- Respect the user's filename if provided.
