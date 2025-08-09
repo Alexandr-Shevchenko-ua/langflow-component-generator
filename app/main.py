@@ -5,6 +5,29 @@ from pydantic import BaseModel, Field
 from jinja2 import Environment, FileSystemLoader, select_autoescape
 from .llm import call_llm
 
+def _repair_with_openai(filename: str, bad_code: bytes, error: SyntaxError) -> bytes:
+    from .llm import call_llm
+    import base64
+    prompt = (
+        "Fix the following Python file so it is syntactically valid and minimal. "
+        "Do NOT add docstrings; use a single # header. Preserve intent.\n"
+        f"Original filename: {filename}\n"
+        f"SyntaxError: {error}\n"
+        "Return ONLY one single-line JSON object with keys: filename, encoding='base64', language='python', code.\n"
+        "Here is the original file content as base64:\n"
+        + base64.b64encode(bad_code).decode()
+    )
+    raw = call_llm(prompt, temperature=0.0).strip()
+    import json, re
+    m = re.search(r"\{.*\}", raw, flags=re.S)
+    if not m:
+        raise ValueError("Repair step did not return JSON")
+    bundle = json.loads(m.group(0))
+    if (bundle.get("encoding") or "").lower() != "base64":
+        raise ValueError("Repair bundle must be base64")
+    return base64.b64decode(bundle["code"])
+
+
 app = FastAPI(title="Component Generator")
 
 env = Environment(
@@ -74,7 +97,18 @@ def generate_component(req: GenRequest):
         try:
             ast.parse(code_bytes.decode("utf-8"))
         except SyntaxError as e:
-            raise HTTPException(status_code=400, detail=f"Python syntax error: {e}")
+            # try once to repair
+            try:
+                code_bytes = _repair_with_openai(filename, code_bytes, e)
+                ast.parse(code_bytes.decode("utf-8"))  # re-verify
+                # overwrite the original bundle with repaired code so the response is usable
+                bundle["code"] = base64.b64encode(code_bytes).decode()
+            except Exception:
+                print("---- DECODED CODE START ----")
+                print(code_bytes.decode("utf-8", errors="ignore"))
+                print("---- DECODED CODE END ----")
+
+                raise HTTPException(status_code=400, detail=f"Python syntax error: {e}")
 
     return bundle
 

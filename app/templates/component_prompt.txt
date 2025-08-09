@@ -22,3 +22,10 @@ Strictness:
 - Any text outside the JSON is a fatal error.
 - JSON must be valid.
 - Keep replies under {{CHAR_LIMIT}} characters total.
+Any text outside the single-line JSON object is a fatal error.
+Do not use code fences or explanations.
+Reliability rules:
+- Do NOT use triple-quoted docstrings. Use a single # comment header instead.
+- The file MUST be syntactically valid Python; imagine it will be parsed with ast.parse().
+- Keep the file minimal; no long comments.
+- Any text outside the single-line JSON is a fatal error.
