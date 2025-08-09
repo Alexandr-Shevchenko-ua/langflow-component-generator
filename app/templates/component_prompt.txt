@@ -1,0 +1,24 @@
+You are generating a Langflow custom component as a single Python file.
+
+Requirements:
+- Target: Langflow "custom component" API (standard library only).
+- Include: class metadata (display_name, description), type hints, docstring, input validation.
+- Inputs/Outputs: implement exactly as specified by the user spec below.
+- Compatibility: assume latest stable Langflow; avoid non-core imports.
+- No side effects; pure computation.
+
+User spec:
+{{SPEC}}
+
+Return format:
+Return ONLY one single-line JSON object (no markdown, no backticks, no extra text).
+Fields:
+- "filename": string like "components/custom/{{SAFE_SLUG}}_component.py"
+- "encoding": "base64"
+- "language": "python"
+- "code": base64 of the FULL file content (UTF-8)
+
+Strictness:
+- Any text outside the JSON is a fatal error.
+- JSON must be valid.
+- Keep replies under {{CHAR_LIMIT}} characters total.
