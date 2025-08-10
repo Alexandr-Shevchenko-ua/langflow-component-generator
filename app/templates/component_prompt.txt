@@ -1,83 +1,26 @@
-You must generate ONE minimal, production-safe Python file that defines EXACTLY this shape:
+Return ONLY one single-line JSON object (no markdown) describing COMPONENT SPEC (not code).
 
-# <Header comment, one short line>
-class PythonExecComponent:
-    display_name = "PythonExec"
-    description = "Runs a short Python snippet with a timeout and returns stdout/stderr."
+Fields:
+- "component": "PythonExec"
+- "display_name": "PythonExec"
+- "description": "Runs a short Python snippet with a timeout and returns stdout/stderr."
+- "inputs": [{"name":"code","type":"str","required":true},{"name":"timeout_s","type":"int","required":false,"default":3}]
+- "banned_patterns": [
+  "\\bfrom\\s+socket\\b", "\\bimport\\s+socket\\b",
+  "\\bfrom\\s+requests\\b","\\bimport\\s+requests\\b",
+  "\\bfrom\\s+urllib\\b","\\bimport\\s+urllib\\b",
+  "\\bfrom\\s+httpx\\b","\\bimport\\s+httpx\\b",
+  "\\bfrom\\s+ftplib\\b","\\bimport\\s+ftplib\\b",
+  "\\bfrom\\s+smtplib\\b","\\bimport\\s+smtplib\\b",
+  "\\baiohttp\\b",
+  "\\bos\\s*\\.\\s*system\\s*\\(",
+  "\\bsubprocess\\s*\\.\\s*(Popen|call|check_output)\\s*\\(",
+  "\\beval\\s*\\(","\\bexec\\s*\\(",
+  "\\b__import__\\s*\\(","\\bimportlib\\s*\\.",
+  "\\bbuiltins\\s*\\.\\s*__import__",
+  "\\bopen\\s*\\("
+]
 
-    def build(self, code: str, timeout_s: int = 3) -> dict:
-        # input validation
-        # safety checks (deny common dangerous patterns)
-        # write snippet to a temp .py
-        # run with subprocess + timeout (isolated mode)
-        # capture stdout/stderr/returncode
-        # cleanup temp file
-        # return {"stdout": str, "stderr": str, "returncode": int, "timed_out": bool}
-
-Functional requirements:
-- Inputs:
-  - code: str (required, non-empty after strip()).
-  - timeout_s: int (default 3). Must be within [1, 10] inclusive.
-- Behavior:
-  - Reject (raise ValueError) if inputs are invalid.
-  - Reject code that matches any banned patterns below (case-insensitive).
-  - Write code to a NamedTemporaryFile(suffix=".py", delete=False, encoding="utf-8").
-  - Execute via subprocess.run([sys.executable, "-I", tmp.name], capture_output=True, text=True, timeout=timeout_s, env={"PYTHONIOENCODING": "utf-8"}).
-    * Use -I (isolated mode) to ignore user site and env.
-    * shell=False (DO NOT use a shell).
-  - On success: return dict with stdout, stderr, returncode, timed_out=False.
-  - On TimeoutExpired: return dict with stdout="", stderr=f"Timeout after {timeout_s}s", returncode=-1, timed_out=True.
-  - Always remove the temp file in a finally block (ignore unlink errors).
-
-Security policy (deny-list; raise ValueError if matched, case-insensitive):
-- Any import/use of network or email/file-transfer libs: socket, requests, urllib, httpx, ftplib, smtplib, aiohttp.
-- OS/Process spawns or shelling out: os.system(, subprocess.Popen(, subprocess.call(, subprocess.check_output(.
-- Direct file open that looks like disk access: a bare open( not obviously aimed at stdout/stderr; block any "open(" occurrence.
-- Direct eval/exec: eval( or exec(.
-- Path tricks: __import__(, importlib., builtins.__import__.
-- Multiprocessing/threading primitives: multiprocessing., threading., _thread.
-Banned regex list (apply re.IGNORECASE):
-  \bfrom\s+socket\b | \bimport\s+socket\b
-  \bfrom\s+requests\b | \bimport\s+requests\b
-  \bfrom\s+urllib\b | \bimport\s+urllib\b
-  \bfrom\s+httpx\b | \bimport\s+httpx\b
-  \bfrom\s+ftplib\b | \bimport\s+ftplib\b
-  \bfrom\s+smtplib\b | \bimport\s+smtplib\b
-  \baiohttp\b
-  \bos\.system\s*\(
-  \bsubprocess\.(Popen|call|check_output)\s*\(
-  \beval\s*\(
-  \bexec\s*\(
-  \b__import__\s*\(
-  \bimportlib\.
-  \bbuiltins\.__import__
-  \bopen\s*\(
-
-Implementation constraints:
-- Use ONLY the Python standard library (sys, tempfile, subprocess, os, re are fine).
-- Use a single # header comment; DO NOT use triple-quoted docstrings anywhere.
-- Keep the file syntactically valid and minimal. It MUST parse with ast.parse().
-- Provide clear, small validation error messages.
-- Keep class name EXACTLY PythonExecComponent; method MUST be build(self, code: str, timeout_s: int = 3) -> dict.
-- No decorators, no extra classes or helper functions outside the class.
-- No prints, no logging.
-
-Style & determinism:
-- Strong type hints on method signature and obvious local vars only.
-- No trailing whitespace; consistent 4-space indents.
-- Keep under ~120 lines.
-
-Return format (STRICT):
-Return ONLY one single-line JSON object (no markdown). Fields:
-- "filename": "components/custom/python_exec_component.py"
-- "language": "python"
-- "code_lines": array of strings (each element is ONE line of the file, without trailing newline)
-
-Hard constraints:
-- Do not include code fences, XML tags, or prose.
-- Ensure valid JSON (double quotes, commas).
-- Every line of code must be in code_lines (no embedded newlines inside a line).
-- Any text outside the single-line JSON is a fatal error.
-
-User spec:
-Generate the component exactly as described above.
+Hard rules:
+- Valid JSON only. No explanations, no code fences, no extra text.
+- Keep fields exactly as shown. Do NOT include any code.
