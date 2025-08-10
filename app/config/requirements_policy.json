@@ -1,0 +1,92 @@
+{
+  "required_keys": [
+    "raw_spec",
+    "purpose",
+    "context",
+    "inputs",
+    "outputs",
+    "constraints",
+    "non_functional",
+    "acceptance_criteria",
+    "risks",
+    "assumptions",
+    "open_questions"
+  ],
+  "min_counts": {
+    "inputs": 2,
+    "outputs": 2,
+    "constraints": 5,
+    "non_functional": 4,
+    "acceptance_criteria": 6,
+    "risks": 3,
+    "assumptions": 3,
+    "open_questions": 3
+  },
+  "banned_tokens": [
+    "tbd",
+    "derived automatically",
+    "confirm inputs",
+    "insufficient detail"
+  ],
+  "prompt": {
+    "system": "You are a senior requirements engineer. Extract a COMPLETE, SPECIFIC requirements JSON from the brief.",
+    "format_rules": [
+      "Valid JSON only (no markdown, no backticks).",
+      "\"raw_spec\" is the verbatim brief.",
+      "\"purpose\" MUST NOT equal \"raw_spec\".",
+      "\"context\" MUST be 1–3 sentences and mention repo/runtime if implied.",
+      "\"inputs\" MUST have ≥{min_inputs} items; each has name,type,required,description.",
+      "\"outputs\" MUST have ≥{min_outputs} items; each has name,type,description.",
+      "\"constraints\" ≥{min_constraints}; \"non_functional\" ≥{min_non_functional}; \"acceptance_criteria\" ≥{min_acceptance_criteria}; \"risks\" ≥{min_risks}; \"assumptions\" ≥{min_assumptions}; \"open_questions\" ≥{min_open_questions}.",
+      "No placeholders like {banned_list}."
+    ],
+    "example_shape": "{\"raw_spec\":\"...\",\"purpose\":\"...\",\"context\":\"...\",\"inputs\":[{\"name\":\"...\",\"type\":\"...\",\"required\":true,\"description\":\"...\"}],\"outputs\":[{\"name\":\"...\",\"type\":\"...\",\"description\":\"...\"}],\"constraints\":[\"...\"],\"non_functional\":[\"...\"],\"acceptance_criteria\":[\"...\"],\"risks\":[\"...\"],\"assumptions\":[\"...\"],\"open_questions\":[\"...\"]}"
+  },
+  "fallback_defaults": {
+    "context": "Custom Langflow component in langflow-component-generator; must integrate as a node without affecting FastAPI runtime.",
+    "inputs_extra": [
+      {"name": "max_output_chars", "type": "int", "required": false, "description": "Upper bound for combined outputs"},
+      {"name": "allow_imports", "type": "bool", "required": false, "description": "Enable controlled import whitelist"}
+    ],
+    "outputs_extra": [
+      {"name": "exit_code", "type": "int", "required": true, "description": "Process exit status"},
+      {"name": "timed_out", "type": "bool", "required": true, "description": "True if execution exceeded timeout"}
+    ],
+    "constraints": [
+      "Enforce wall‑clock timeout; terminate deterministically on expiry",
+      "Deny all network access",
+      "Restrict filesystem I/O to an ephemeral working directory",
+      "Capture stdout and stderr separately with truncation support",
+      "Safe for concurrent executions; no cross‑request state leakage"
+    ],
+    "non_functional": [
+      "Performance: cold start under 200 ms for trivial snippets in Codespaces",
+      "Security: no uncontrolled subprocess or module escalation",
+      "Observability: structured logs for start/stop/timeout/truncation (no code payloads)",
+      "Compatibility: Python 3.10+ in GitHub Codespaces and Langflow nodes"
+    ],
+    "acceptance_criteria": [
+      "Printing 'hi' returns stdout=='hi\\n' and stderr=='' with exit_code==0",
+      "Infinite loop terminates within timeout_s+250 ms with timed_out==true",
+      "stderr-only script yields empty stdout and captured stderr",
+      "Outputs larger than max_output_chars are truncated with indicator",
+      "Disallowed import fails with clear security error when allow_imports==false",
+      "Memory overuse triggers limit-breach error with non-zero exit_code"
+    ],
+    "risks": [
+      "Sandbox escape via reflective or bytecode manipulation",
+      "CPU starvation prior to timeout enforcement",
+      "Environment differences between Codespaces and deployment targets"
+    ],
+    "assumptions": [
+      "Python 3.10+ and ability to spawn isolated workers",
+      "No persistent state required across executions",
+      "Moderators will define import whitelist policy if enabled"
+    ],
+    "open_questions": [
+      "Exact import whitelist when allow_imports==true",
+      "Maximum accepted code size and truncation policy",
+      "Concurrency target on reference Codespaces hardware"
+    ]
+  }
+}
