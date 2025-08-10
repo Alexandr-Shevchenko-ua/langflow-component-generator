@@ -1,0 +1,43 @@
+{
+  "raw_spec": "Create a PythonExec component that runs short code with a timeout and returns stdout/stderr.",
+  "purpose": "Create a PythonExec component that runs short code with a timeout and returns stdout/stderr.",
+  "context": "Derived automatically due to insufficient detail.",
+  "inputs": [
+    {
+      "name": "timeout_s",
+      "type": "int",
+      "required": false,
+      "description": "Execution timeout in seconds"
+    },
+    {
+      "name": "code",
+      "type": "string",
+      "required": true,
+      "description": "Python code snippet"
+    }
+  ],
+  "outputs": [
+    {
+      "name": "stdout",
+      "type": "string",
+      "required": true,
+      "description": "Captured standard output"
+    },
+    {
+      "name": "stderr",
+      "type": "string",
+      "required": true,
+      "description": "Captured standard error"
+    }
+  ],
+  "constraints": [],
+  "non_functional": [],
+  "acceptance_criteria": [
+    "A runnable demo validates the main flow."
+  ],
+  "risks": [],
+  "assumptions": [],
+  "open_questions": [
+    "Confirm inputs/outputs and any environment constraints."
+  ]
+}

@@ -1,0 +1,72 @@
+{
+"raw_spec": "Create a PythonExec component that runs short code with a timeout and returns stdout/stderr.",
+"purpose": "Provide a safe, time‑limited runtime for executing small Python snippets inside Langflow pipelines and returning their outputs for downstream nodes.",
+"context": "The component will be generated into components/custom/ within the langflow-component-generator FastAPI project running in GitHub Codespaces. It must plug into Langflow as a node, execute user‑provided Python 3 code snippets in a constrained environment, and avoid interfering with the FastAPI service or other flows.",
+"inputs": [
+{"name": "code", "type": "string", "required": true, "description": "Python 3 snippet to execute (non-interactive)"},
+{"name": "timeout_s", "type": "int", "required": false, "description": "Wall‑clock timeout in seconds (default 3)"},
+{"name": "memory_limit_mb", "type": "int", "required": false, "description": "Resident memory limit for the snippet (default 64)"},
+{"name": "stdin", "type": "string", "required": false, "description": "Text to pipe to the process standard input (default empty)"},
+{"name": "allow_imports", "type": "bool", "required": false, "description": "If true, allow imports from a controlled whitelist only (default false)"},
+{"name": "max_output_chars", "type": "int", "required": false, "description": "Upper bound on combined stdout+stderr captured (default 20000)"},
+{"name": "working_dir", "type": "string", "required": false, "description": "Ephemeral working directory path if isolation uses a temp dir; ignored otherwise"},
+{"name": "env_vars", "type": "object", "required": false, "description": "Key‑value environment variables exposed to the snippet; empty by default"}
+],
+"outputs": [
+{"name": "stdout", "type": "string", "required": true, "description": "Captured standard output, possibly truncated to max_output_chars"},
+{"name": "stderr", "type": "string", "required": true, "description": "Captured standard error, possibly truncated to max_output_chars"},
+{"name": "exit_code", "type": "int", "required": true, "description": "Process exit status (non‑zero on error/kill)"},
+{"name": "timed_out", "type": "bool", "required": true, "description": "True if execution exceeded timeout_s and was terminated"},
+{"name": "duration_ms", "type": "int", "required": true, "description": "Measured wall‑clock execution time in milliseconds"}
+],
+"constraints": [
+"Must enforce wall‑clock timeout and terminate execution deterministically on expiry",
+"Must restrict filesystem access to an optional ephemeral working directory with no external read/write",
+"Must deny all outbound and inbound network access",
+"Must enforce a memory limit; terminate if exceeded",
+"Must block dangerous builtins and modules; when allow_imports=true, only a predefined whitelist is allowed",
+"Must capture stdout and stderr separately and support truncation at max_output_chars",
+"Must be reentrant and safe to run concurrently without leaking state across requests",
+"Must not block the FastAPI event loop; long work must run in a worker thread/process"
+],
+"non_functional": [
+"Performance: cold start under 200 ms and total overhead under 50 ms for trivial snippets on the reference environment",
+"Security: no network, no uncontrolled file I/O, no subprocess escalation beyond the sandbox policy",
+"Reliability: deterministic termination on timeout or limit breach with clear error signaling",
+"Observability: minimal structured logs for start, stop, limits breached, and truncation events without logging code payloads",
+"Maintainability: component code isolated, documented, and unit‑tested; config defaults centralized",
+"Compatibility: runs under Python 3.10+ in GitHub Codespaces and typical Langflow deployments"
+],
+"acceptance_criteria": [
+"Given code='print(\"hi\")' then stdout=='hi\n', stderr=='', exit_code==0, timed_out==false, and duration_ms>0",
+"Given an infinite loop, execution terminates within timeout_s+250 ms and returns timed_out==true with non‑zero exit_code",
+"Given code that writes to stderr, stderr captures content and stdout remains empty",
+"Given output larger than max_output_chars, outputs are truncated and a truncation indicator is appended",
+"Given allow_imports=false, 'import os' fails with a clear security error; with allow_imports=true and 'math' whitelisted, 'import math' succeeds",
+"Given code that allocates memory beyond memory_limit_mb, execution is terminated with a limit‑breach error and non‑zero exit_code",
+"Component can be added as a node in a Langflow pipeline and passes a sample flow test in tests/test_gen.py",
+"Concurrent executions (≥5 in parallel) complete independently without cross‑talk or shared state leakage"
+],
+"risks": [
+"Sandbox escape via reflective or bytecode manipulation",
+"Resource exhaustion from pathological code causing CPU starvation before timeout enforcement",
+"Environment differences between Codespaces and target deployments affecting limits behavior",
+"Over‑zealous restrictions breaking legitimate use cases",
+"Complexity of reliably enforcing import and I/O policies across Python versions"
+],
+"assumptions": [
+"The project can rely on Python 3.10+ and has permission to spawn isolated workers (threads or processes)",
+"Langflow custom components can surface multiple typed outputs back into the graph",
+"No persistent state is required across executions",
+"Moderators will curate any import whitelist if enabled"
+],
+"open_questions": [
+"What exact import whitelist (if any) should be allowed when allow_imports=true?",
+"What is the maximum accepted code size and should we reject or truncate oversized inputs?",
+"What is the desired policy and message format for output truncation indicators?",
+"Should stdin be enabled by default or require an explicit opt‑in?",
+"What concurrency target must we support on the reference hardware in Codespaces?",
+"Do we need audit artifacts (e.g., hashed code payload, execution metadata) for compliance review?",
+"Should the component expose a toggle to merge stderr into stdout for simpler downstream handling?"
+]
+}

@@ -104,56 +104,98 @@ def run_requirements(spec: str, workspace: Optional[Path | str] = None) -> dict:
 # ---------- LLM Prompting (JSON-only, robust) ----------
 
 _REQUIREMENTS_PROMPT = """
-You are a senior requirements engineer. Extract a structured requirements document from the user's brief.
+You are a senior requirements engineer. Extract a COMPLETE, SPECIFIC requirements JSON from the brief.
 
 USER BRIEF:
 <<<
 {SPEC}
 >>>
 
-Return ONLY one single-line JSON object (no markdown, no code fences, no extra text) with these EXACT keys:
+Output: ONE SINGLE-LINE JSON object with EXACT keys:
+"raw_spec","purpose","context","inputs","outputs","constraints","non_functional","acceptance_criteria","risks","assumptions","open_questions"
 
-- "raw_spec": string (verbatim user brief)
-- "purpose": string (business outcome in one sentence)
-- "context": string (operational/business context in 1-3 sentences)
-- "inputs": array of {{"name": str, "type": str, "required": bool, "description": str}}
-- "outputs": array of {{"name": str, "type": str, "description": str}}
-- "constraints": array of strings (functional constraints)
-- "non_functional": array of strings (performance, security, privacy, compliance, maintainability)
-- "acceptance_criteria": array of strings (testable statements)
-- "risks": array of strings (key project or technical risks)
-- "assumptions": array of strings
-- "open_questions": array of strings (unknowns to clarify)
+Quality rules (MUST):
+- Valid JSON only (no markdown, no backticks).
+- "purpose" MUST NOT equal "raw_spec".
+- "context" MUST be 1–3 sentences and mention repo/runtime if implied.
+- "inputs" MUST have ≥2 items; each has name,type,required,description.
+- "outputs" MUST have ≥2 items; each has name,type,description.
+- "constraints" ≥5; "non_functional" ≥4; "acceptance_criteria" ≥6; "risks" ≥3; "assumptions" ≥3; "open_questions" ≥3.
+- No placeholders like "TBD", "Derived automatically", or "Confirm inputs".
+- Keep it concise, but explicit and testable.
 
-Strictness:
-- Valid JSON only (double quotes, commas, no comments).
-- Keep it concise and specific.
-- If some sections are unclear, include a short list of open_questions instead of guessing.
+Example shape (do NOT copy values):
+{"raw_spec":"...","purpose":"...","context":"...","inputs":[{"name":"...","type":"...","required":true,"description":"..."}],"outputs":[{"name":"...","type":"...","description":"..."}],"constraints":["..."],"non_functional":["..."],"acceptance_criteria":["..."],"risks":["..."],"assumptions":["..."],"open_questions":["..."]}
+""".strip()
+
+_MIN_COUNTS = {
+    "inputs": 2,
+    "outputs": 2,
+    "constraints": 5,
+    "non_functional": 4,
+    "acceptance_criteria": 6,
+    "risks": 3,
+    "assumptions": 3,
+    "open_questions": 3,
+}
+_BAD_TOKENS = {"tbd", "derived automatically", "confirm inputs", "insufficient detail"}
+
+def _is_semantically_strong(payload: dict, spec: str) -> tuple[bool, str]:
+    # purpose not equal raw_spec
+    if payload.get("purpose","").strip() == spec.strip():
+        return False, "purpose equals raw_spec"
+    # min counts
+    for k, n in _MIN_COUNTS.items():
+        if not isinstance(payload.get(k), list) or len(payload[k]) < n:
+            return False, f"{k} has less than {n} items"
+    # no placeholders
+    blob = json.dumps(payload).lower()
+    if any(tok in blob for tok in _BAD_TOKENS):
+        return False, "placeholder tokens detected"
+    # inputs/outputs fields check
+    for io in payload.get("inputs", []):
+        if not all(x in io for x in ("name","type","required","description")):
+            return False, "inputs missing fields"
+    for oo in payload.get("outputs", []):
+        if not all(x in oo for x in ("name","type","description")):
+            return False, "outputs missing fields"
+    return True, ""
+
+_REPAIR_PROMPT = """
+You produced this JSON, but it violates the quality rules. FIX it.
+BRIEF:
+<<<{SPEC}>>>
+CURRENT_JSON:
+<<<{CURRENT}>>>
+Apply the same schema and MUST rules as before (min counts, no placeholders, purpose≠raw_spec). Return ONE SINGLE-LINE VALID JSON ONLY.
 """.strip()
 
 
 def _call_llm_requirements(spec: str) -> dict:
-    """Call your LLM and parse the JSON response safely."""
-    # We ask the model for JSON; extract the first {...} to be safe.
     raw = call_llm(_REQUIREMENTS_PROMPT.format(SPEC=spec), temperature=0.0).strip()
     m = re.search(r"\{.*\}", raw, flags=re.S)
     if not m:
         raise ValueError("Model did not return JSON")
 
-    try:
-        data = json.loads(m.group(0))
-    except json.JSONDecodeError as e:
-        raise ValueError(f"JSON parse error: {e}")
+    data = json.loads(m.group(0))
 
-    # Quick shape check before Pydantic validation
-    expected_keys = {
-        "raw_spec", "purpose", "context", "inputs", "outputs",
-        "constraints", "non_functional", "acceptance_criteria",
-        "risks", "assumptions", "open_questions",
-    }
+    # shape check
+    expected_keys = {"raw_spec","purpose","context","inputs","outputs","constraints","non_functional","acceptance_criteria","risks","assumptions","open_questions"}
     missing = expected_keys - set(data.keys())
     if missing:
         raise ValueError(f"Missing keys in JSON: {sorted(missing)}")
+
+    ok, why = _is_semantically_strong(data, spec)
+    if not ok:
+        repaired_raw = call_llm(_REPAIR_PROMPT.format(SPEC=spec, CURRENT=json.dumps(data, ensure_ascii=False)), temperature=0.0).strip()
+        m2 = re.search(r"\{.*\}", repaired_raw, flags=re.S)
+        if not m2:
+            raise ValueError(f"Repair failed: {why}")
+        data2 = json.loads(m2.group(0))
+        ok2, why2 = _is_semantically_strong(data2, spec)
+        if not ok2:
+            raise ValueError(f"Repaired JSON still weak: {why2}")
+        return data2
 
     return data
 
