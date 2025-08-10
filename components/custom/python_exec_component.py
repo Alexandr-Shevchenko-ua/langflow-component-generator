@@ -3,7 +3,7 @@ class PythonExecComponent:
     display_name = "PythonExec"
     description = "Runs a short Python snippet with a timeout and returns stdout/stderr."
 
-    def build(self, code: str, timeout_s: int = 3) -> dict:
+    def build(self, code: str, timeout_s: int = 8) -> dict:
         import sys, tempfile, subprocess, os, re, ast
 
         # 1) validate inputs
